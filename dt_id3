@@ -1,0 +1,240 @@
+//traning date(traning tuples)
+D1    Sunny        Hot    High        Weak    No
+D2    Sunny        Hot    High        Strong    No
+D3    Overcast    Hot    High        Weak    Yes
+D4    Rain        Mild    High        Weak    Yes
+D5    Rain        Cool    Normal        Weak    Yes
+D6    Rain        Cool    Normal        Strong    No
+D7    Overcast    Cool    Normal        Strong    Yes
+D8    Sunny        Mild    High        Weak    No
+D9    Sunny        Cool    Normal        Weak    Yes
+D10    Rain        Mild    Normal        Weak    Yes
+D11    Sunny        Mild    Normal        Strong    Yes
+D12    Overcast    Mild    High        Strong    Yes
+D13    Overcast    Hot    Normal        Weak    Yes
+D14    Rain        Mild    High        Strong    No
+//testing data
+D1    Sunny        Hot    High        Weak
+D2    Sunny        Hot    High        Strong
+D3    Overcast    Hot    High        Weak
+D4    Rain        Mild    High        Weak
+D5    Rain        Cool    Normal        Weak
+D6    Rain        Cool    Normal        Strong
+D7    Overcast    Cool    Normal        Strong
+D8    Sunny        Mild    High        Weak
+D9    Sunny        Cool    Normal        Weak
+D10    Rain        Mild    Normal        Weak
+D11    Sunny        Mild    Normal        Strong
+D12    Overcast    Mild    High        Strong
+D13    Overcast    Hot    Normal        Weak
+D14    Rain        Mild    High        Strong
+
+//ヘッダ
+head.h
+
+#ifndef ID3_H_INCLUDED
+#define ID3_H_INCLUDED
+#include <map>
+#include <fstream>
+#include <vector>
+#include <set>
+#include <iostream>
+#include <cmath>
+using namespace std;
+
+
+const int DataRow=14;
+const int DataColumn=6;
+
+const int testRow=14;
+const int testColumn=5;
+struct Node{
+    double value;　　　　　　          //label valbue,1=YES,0=No
+    int attrid;　　　　　　　          //number of attribute
+    int attrvalue;　　　　　        　//atttribute value
+    vector<Node*> childNode;
+};
+
+
+#endif // ID3_H_INCLUDED
+
+
+
+#include "id3.h"
+
+string DataTable[DataRow][DataColumn];          //traning data を保存する
+string TestTable[testRow][DataColumn];          //testing data を保存する
+map<string ,int> string2int;
+set<int> S;
+set<int> Attributes;
+string attrName[DataColumn]=
+{"Day","OutLook","Temperature","Humidity","Wind","PlayTennis"};
+string attrValue[DataColumn][DataColumn]=
+{
+    {},
+    {"Sunny","Overcast","Rain"},　　　　　　　　　　　　　//sunny=1,overcast=2,rain=3
+    {"Hot","Mild","Cool"},　　　　　　　　　　　　　　　　　　//hot=1,mild=2, cool=3
+    {"High","Normal"},　　　　　　　　　　　　　　　　　　　　　//High=1,normal=2
+    {"Weak","Strong"}, 　　　　　　　　　　　　　　　　　　　　//weak=1,strong=2
+    {"Yes","No"}  　　　　　　　　　　　　　　　　　　　　　　　　//yes=1,no=2
+
+};
+int attrCount[DataColumn]={14,3,3,2,2,2};
+double lg2(double n)
+{
+    return log(n)/log(2);
+}
+void Init()                 　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 //初期化(Initialization)
+{
+    ifstream fin("dataset.txt");
+    for(int i=0;i<DataRow;++i)
+    {
+        for(int j=0;j<DataColumn;++j)
+        {
+            fin>>DataTable[i][j];
+        }
+    }
+    fin.close();
+    for(int i=1;i<=DataColumn-1;++i)
+    {
+        string2int[attrName[i]]=i;
+        for(int j=0;j<attrCount[i];++j)
+            string2int[attrValue[i][j]]=j;
+    }
+    for(int i=0;i<DataRow;i++)
+        S.insert(i);
+    for(int i=1;i<=DataColumn-2;i++)
+        Attributes.insert(i);
+}
+double Entropy(const set<int> &s)              　　　　　　　　　　　　　　　　　　　　　 //エントロピ―を計算する　　（Calculate the entropy）
+{
+    double yes=0,no=0;
+    for(set<int>::size_type i=1;i<s.size();i++)
+    {
+        if(string2int[DataTable[i][DataColumn-1]]==0)
+            yes++;
+        else
+            no++;
+    }
+    if(no==0||yes==0)
+        return 0;
+    double Py=yes/s.size();
+    double Pn=no/s.size();
+    double ans=-1*Py*lg2(Py)+-1*Pn*lg2(Pn);
+    return ans;
+}
+double Gain(const set<int> &s,int attrid)           　　　　　　　　　　　　　　　　//情報ゲイン値を計算する（Calculate the information gain value）
+{
+    double ans=0;
+    int attrcount = attrCount[attrid];
+    double sumEntropy = Entropy(s);
+    set<int> *pset = new set<int>[attrcount];
+    for(set<int>::const_iterator iter=s.begin();iter!=s.end();iter++)
+    {
+
+        pset[string2int[DataTable[*iter][attrid]]].insert(*iter);
+    }
+    for(int i=0;i<attrcount;i++)
+    {
+        ans-=(double)pset[i].size()/(double)s.size()*Entropy(pset[i]);
+    }
+    return sumEntropy-ans;
+}
+int FinderBestAttribute(const set<int> &s,const set<int> &attr)　　　　　　//最適の属性分類を探す（Find the best classification attribute）
+{
+    double maxg=0;
+    int k=-1;
+    for(set<int>::const_iterator iter=attr.begin();iter!=attr.end();++iter)
+    {
+        double tem=Gain(s,*iter);
+        if(tem>maxg)
+        {
+            maxg=tem;
+            k=*iter;
+        }
+    }
+    int sum=s.size();
+    sum=attr.size();
+    if(k==-1)
+        cout<<"FinderBestAttribute Error!"<<endl;
+    return k;
+}
+
+Node * Id3_solution(set<int> s,set<int> attr)
+{
+    Node * now = new Node();
+    now->value=-1;
+    if(attr.empty())     
+        return NULL;
+    int yes=0,no=0,sum=s.size();
+    for(set<int>::iterator iter=s.begin();iter!=s.end();iter++)
+    {
+        if(DataTable[*iter][DataColumn-1]=="Yes")
+            yes++;
+        else
+            no++;
+    }
+    if(yes==sum||no==sum)
+    {
+     now->value=yes/sum;
+     return now;
+    }
+
+    int bestattrid = FinderBestAttribute(s,attr);      　　　　　　　　　　　　　　　 //最適の属性を見つけた（finded the best attribute）
+    now->attrid=bestattrid;
+    attr.erase(attr.find(bestattrid));
+    vector<set<int> > child=vector<set<int> >(attrCount[bestattrid]);
+    for(set<int>::iterator iter=s.begin();iter!=s.end();iter++)             //子ノードを挿入する（Insert child node）
+    {
+        int id = string2int[DataTable[*iter][bestattrid]];
+        child[id].insert(*iter);
+    }
+    for(int i=0;i<child.size();i++)         　　　　　　　　　　　　　　　　　　　　　　　　　//子ノードの再帰呼び出し（Recursively call the child's node）
+    {
+        Node *rel = Id3_solution(child[i],attr);
+        rel->attrvalue=i;
+        now->childNode.push_back(rel);
+    }
+    return now;
+}
+void test(Node * Root)　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　//決定木を使って、テストデータをテストする（test with decision tree）
+{
+    Node* pnow=Root;
+    ifstream fin("test.txt");
+    for(int i=0;i<testRow;i++)
+    {
+        for(int j=0;j<testColumn;j++)
+            fin>>TestTable[i][j];
+    }
+    fin.close();
+    for(int i=0;i<testRow;i++)
+    {
+        pnow=Root;
+        while(true)
+        {
+            if(pnow->value==1)
+                {TestTable[i][DataColumn-1]="yes";break;}
+            else if(pnow->value==0)
+                {TestTable[i][DataColumn-1]="no";break;}
+            for(vector<Node*>::iterator iter=pnow->childNode.begin();iter!=pnow->childNode.end();++iter)
+            {
+                if((*iter)->attrvalue==string2int[TestTable[i][pnow->attrid]])
+                {pnow=*iter;
+                break;}
+            }
+        }
+    }
+}
+int main()
+{
+    Init();
+    Node * Root = Id3_solution(S,Attributes);
+    test(Root);
+    for(int i=0;i<testRow;i++)
+    {
+        for(int j=0;j<DataColumn;j++)
+            cout<<TestTable[i][j]<<" ";
+        cout<<endl;
+    }
+    return 0;
+}
